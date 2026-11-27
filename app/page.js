@@ -1,125 +1,185 @@
 'use client';
 import { createElement as h, useCallback, useEffect, useState } from 'react';
 
-const api = async (url, opts) => {
-  const r = await fetch(url, opts);
-  const j = await r.json().catch(() => ({}));
-  return { status: r.status, ...j };
+const api = async (url, options) => {
+  const response = await fetch(url, options);
+  const data = await response.json().catch(() => ({}));
+  return { status: response.status, ...data };
 };
-const post = (url, body) => api(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+const post = (url, body) => api(url, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(body || {}),
+});
 
 function Lamp({ lamp }) {
   return h('div', { className: 'lamp' },
-    h('span', { className: `dot ${lamp.state}` }),
+    h('span', { className: 'dot ' + lamp.state }),
     h('div', null, h('b', null, lamp.label), h('small', null, lamp.detail)));
 }
 
 function Login({ onDone }) {
-  const [pw, setPw] = useState('');
-  const [err, setErr] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
   const go = async () => {
-    const r = await post('/api/login', { password: pw });
-    if (r.ok) onDone(); else setErr('كلمة السر غلط (أو ADMIN_PASSWORD مش متظبطة على Vercel)');
+    const result = await post('/api/login', { password });
+    if (result.ok) onDone();
+    else setError('كلمة السر غلط أو ADMIN_PASSWORD غير مضبوط في إعدادات النشر');
   };
   return h('main', null,
     h('h1', null, 'StoryLoop'),
     h('div', { className: 'card' },
-      h('input', { type: 'password', placeholder: 'كلمة سر اللوحة', value: pw, onChange: (e) => setPw(e.target.value), onKeyDown: (e) => e.key === 'Enter' && go() }),
+      h('input', {
+        type: 'password',
+        placeholder: 'كلمة سر اللوحة',
+        value: password,
+        onChange: (event) => setPassword(event.target.value),
+        onKeyDown: (event) => event.key === 'Enter' && go(),
+      }),
       h('div', { className: 'row' }, h('button', { onClick: go }, 'دخول')),
-      err && h('div', { className: 'msg' }, err)));
+      error && h('div', { className: 'msg' }, error)));
 }
+
+const stageNames = {
+  story: 'كتابة القصة JSON',
+  images: 'توليد صور المشاهد',
+  motion: 'تحريك المشاهد بالتوازي',
+  ready_for_assembly: 'المشاهد اكتملت — جاهزة للتجميع',
+  completed: 'اكتمل الفيديو النهائي',
+  failed: 'تعذر إكمال المهمة',
+};
 
 export default function Page() {
   const [authed, setAuthed] = useState(null);
   const [lamps, setLamps] = useState([]);
   const [keys, setKeys] = useState([]);
-  const [text, setText] = useState('');
-  const [msg, setMsg] = useState('');
+  const [theme, setTheme] = useState('قصة سينمائية للأطفال عن الثعلب وقيمة أخلاقية ونهاية مفاجئة');
+  const [job, setJob] = useState(null);
+  const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
-  const [log, setLog] = useState('');
+  const [testing, setTesting] = useState(false);
 
   const load = useCallback(async () => {
-    const s = await api('/api/status');
-    if (s.status === 401) { setAuthed(false); return; }
+    const status = await api('/api/status');
+    if (status.status === 401) {
+      setAuthed(false);
+      return;
+    }
     setAuthed(true);
-    setLamps(s.lamps || []);
-    const k = await api('/api/keys');
-    setKeys(k.keys || []);
+    setLamps(status.lamps || []);
+    const keyInfo = await api('/api/keys');
+    setKeys(keyInfo.keys || []);
   }, []);
 
-  useEffect(() => { load(); const t = setInterval(load, 30000); return () => clearInterval(t); }, [load]);
+  useEffect(() => {
+    load();
+    const timer = setInterval(load, 30000);
+    return () => clearInterval(timer);
+  }, [load]);
+
+  useEffect(() => {
+    if (!job || ['completed', 'ready_for_assembly', 'failed'].includes(job.status)) return undefined;
+    let stopped = false;
+    const poll = async () => {
+      const current = await api('/api/jobs/' + job.id);
+      if (stopped || !current.job) return;
+      setJob(current.job);
+      if (!['completed', 'ready_for_assembly', 'failed'].includes(current.job.status)) {
+        await post('/api/jobs/tick', { jobId: job.id });
+      }
+    };
+    poll();
+    const timer = setInterval(poll, 5000);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  }, [job?.id, job?.status]);
 
   if (authed === null) return h('main', null, 'جاري التحميل…');
   if (authed === false) return h(Login, { onDone: load });
 
-  const addKeys = async () => {
+  const startStory = async () => {
     setBusy(true);
-    const r = await post('/api/keys', { provider: 'agnes', keys: text });
-    setMsg(`اتضاف ${r.added ?? 0} مفتاح${r.skipped ? ` (${r.skipped} مكرر اتجاهل)` : ''}`);
-    setText('');
-    setBusy(false);
-    load();
-  };
-  const testAgnes = async () => {
-    setBusy(true); setMsg('بيختبر الاتصال بـ Agnes…');
-    const r = await post('/api/test-agnes');
-    setMsg(r.ok ? `✅ Agnes شغّال، الرد: ${r.reply}` : `❌ ${r.error}`);
-    setBusy(false);
-    load();
-  };
-  const testMedia = async () => {
-    setBusy(true);
-    let out = '';
-    const add = (t) => { out += t + '\n\n'; setLog(out); };
-    add('1) توليد صورة…');
-    const img = await post('/api/test-media', { step: 'image' });
-    add('IMAGE: ' + JSON.stringify(img.ok ? img.raw : { error: img.error }, null, 1));
-    if (!img.ok || !img.url) { add('وقفنا: مفيش رابط صورة. ابعت اللي فوق.'); setBusy(false); return; }
-    add('2) إنشاء مقطع فيديو…');
-    const vc = await post('/api/test-media', { step: 'video-create', image: img.url });
-    add('VIDEO-CREATE: ' + JSON.stringify(vc.ok ? vc.raw : { error: vc.error }, null, 1) + '\nSENT: ' + JSON.stringify(vc.sent));
-    const raw = vc.raw || {};
-    const vid = raw.videoId || raw.video_id || raw.data?.videoId || raw.data?.video_id || raw.id;
-    if (!vc.ok || !vid) { add('وقفنا: مفيش video id. ابعت اللي فوق.'); setBusy(false); return; }
-    for (let i = 1; i <= 40; i++) {
-      await new Promise((r) => setTimeout(r, 8000));
-      const p = await post('/api/test-media', { step: 'video-poll', id: vid });
-      const st = JSON.stringify(p.raw || { error: p.error });
-      if (i === 1 || /complet|succe|done|fail|error|url/i.test(st)) { add(`POLL #${i}: ` + JSON.stringify(p.ok ? p.raw : { error: p.error }, null, 1)); if (/complet|succe|done|fail|error/i.test(st) || !p.ok) break; }
+    setMessage('تم إرسال طلب إنشاء القصة…');
+    try {
+      const result = await post('/api/jobs', { theme });
+      if (!result.ok || !result.job) throw new Error(result.error || 'تعذر إنشاء المهمة');
+      setJob(result.job);
+      setMessage('بدأت المهمة. المتصفح يتابع التقدم كل 5 ثوانٍ.');
+      await post('/api/jobs/tick', { jobId: result.job.id });
+    } catch (error) {
+      setMessage('خطأ: ' + error.message);
+    } finally {
+      setBusy(false);
+      load();
     }
-    add('خلص. انسخ كل اللي فوق وابعته.');
-    setBusy(false);
   };
-  const act = async (id, action) => { await api('/api/keys', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, action }) }); load(); };
-  const del = async (id) => { if (confirm('مسح المفتاح؟')) { await api(`/api/keys?id=${id}`, { method: 'DELETE' }); load(); } };
 
-  const stateAr = { active: 'شغّال', cooling: 'مستني', disabled: 'موقوف' };
+  const testAgnes = async () => {
+    setTesting(true);
+    setMessage('اختبار مفتاح Agnes رقم 1…');
+    const result = await post('/api/test-agnes');
+    setMessage(result.ok ? '✅ Agnes متصل: ' + result.reply : '❌ ' + result.error);
+    setTesting(false);
+  };
+
+  const currentStage = job ? stageNames[job.stage] || job.stage : '';
+  const sceneRows = job?.scenes || [];
+  const doneImages = sceneRows.filter((scene) => scene.imageStatus === 'done').length;
+  const doneClips = sceneRows.filter((scene) => scene.motionStatus === 'done').length;
 
   return h('main', null,
-    h('h1', null, 'StoryLoop'),
-    h('div', { className: 'card' }, h('h2', null, 'حالة الربط'), lamps.map((l) => h(Lamp, { key: l.id, lamp: l }))),
+    h('header', { className: 'topbar' },
+      h('div', null, h('h1', null, 'StoryLoop'), h('p', null, 'خط إنتاج قصصي غير متزامن')),
+      h('span', { className: 'pill' }, 'Environment-only keys')),
     h('div', { className: 'card' },
-      h('h2', null, 'إضافة مفاتيح Agnes (مفتاح في كل سطر)'),
-      h('textarea', { value: text, onChange: (e) => setText(e.target.value), placeholder: 'sk-...\nsk-...' }),
+      h('h2', null, 'حالة الأنظمة'),
+      lamps.map((lamp) => h(Lamp, { key: lamp.id, lamp }))),
+    h('div', { className: 'card' },
+      h('h2', null, 'إنشاء قصة جديدة'),
+      h('label', { htmlFor: 'story-theme' }, 'فكرة القصة'),
+      h('textarea', {
+        id: 'story-theme',
+        value: theme,
+        onChange: (event) => setTheme(event.target.value),
+        placeholder: 'اكتب موضوع القصة أو الفكرة الرئيسية…',
+      }),
       h('div', { className: 'row' },
-        h('button', { onClick: addKeys, disabled: busy || !text.trim() }, 'إضافة'),
-        h('button', { className: 'ghost', onClick: testAgnes, disabled: busy }, 'اختبار الاتصال'),
-        h('button', { className: 'ghost', onClick: testMedia, disabled: busy }, 'اختبار صورة وفيديو')),
-      msg && h('div', { className: 'msg' }, msg),
-      log && h('pre', { style: { direction: 'ltr', whiteSpace: 'pre-wrap', fontSize: 12, marginTop: 12, background: '#0c0e12', padding: 10, borderRadius: 8 } }, log)),
+        h('button', { onClick: startStory, disabled: busy || !theme.trim() }, busy ? 'جارٍ الإرسال…' : 'ابدأ خط الإنتاج'),
+        h('button', { className: 'ghost', onClick: testAgnes, disabled: testing }, 'اختبار مفتاح النص والصور')),
+      message && h('div', { className: 'msg' }, message)),
+    job && h('div', { className: 'card job-card' },
+      h('div', { className: 'job-head' },
+        h('h2', null, job.title || 'مهمة إنتاج جديدة'),
+        h('span', { className: 'pill' }, job.status)),
+      h('p', null, currentStage),
+      h('div', { className: 'progress-track' },
+        h('div', { className: 'progress-fill', style: { width: String(job.progress || 0) + '%' } })),
+      h('div', { className: 'row spread' },
+        h('small', null, 'التقدم: ' + (job.progress || 0) + '%'),
+        h('small', null, 'المهمة: ' + job.id.slice(0, 8))),
+      h('div', { className: 'stats' },
+        h('div', null, h('b', null, doneImages + '/' + (job.sceneCount || 0)), h('small', null, 'صور جاهزة')),
+        h('div', null, h('b', null, doneClips + '/' + (job.sceneCount || 0)), h('small', null, 'مقاطع متحركة'))),
+      sceneRows.length > 0 && h('div', { className: 'scene-list' },
+        sceneRows.map((scene) => h('div', { className: 'scene-row', key: scene.sceneId },
+          h('b', null, 'مشهد ' + scene.n),
+          h('span', null, scene.imageStatus === 'done' ? 'الصورة جاهزة' : 'بانتظار الصورة'),
+          h('span', null, scene.motionStatus === 'done' ? 'الفيديو جاهز' : scene.motionStatus === 'running' ? 'جارٍ التحريك' : scene.motionProvider === 'fal' ? 'تحريك احتياطي' : 'بانتظار التحريك')))),
+      job.lastError && h('div', { className: 'msg' }, 'آخر ملاحظة: ' + job.lastError),
+      job.error && h('div', { className: 'msg error-msg' }, job.error),
+      job.finalPath && h('div', { className: 'msg' }, 'مسار الفيديو النهائي: ' + job.finalPath)),
     h('div', { className: 'card' },
-      h('h2', null, `المفاتيح (${keys.length})`),
-      keys.length === 0 ? h('div', { className: 'msg' }, 'لسه مفيش مفاتيح') :
-        h('table', null,
-          h('thead', null, h('tr', null, ['#', 'المفتاح', 'الحالة', 'استخدام', 'أخطاء', ''].map((t, i) => h('th', { key: i }, t)))),
-          h('tbody', null, keys.map((k) => h('tr', { key: k.id },
-            h('td', null, k.id),
-            h('td', { className: 'mono' }, k.masked),
-            h('td', null, h('span', { className: `dot ${k.status === 'active' ? 'ok' : k.status === 'disabled' ? 'error' : ''}`, style: { display: 'inline-block', marginLeft: 6, width: 10, height: 10 } }), stateAr[k.status] || k.status, k.last_error ? h('small', { style: { display: 'block', color: 'var(--mute)' } }, k.last_error.slice(0, 60)) : null),
-            h('td', null, k.uses),
-            h('td', null, k.fail_count),
-            h('td', null,
-              h('button', { className: 'ghost', onClick: () => act(k.id, k.status === 'disabled' ? 'enable' : 'disable') }, k.status === 'disabled' ? 'تفعيل' : 'إيقاف'),
-              ' ', h('button', { className: 'ghost', onClick: () => del(k.id) }, 'مسح')))))))
+      h('h2', null, 'مفاتيح Agnes من Environment Variables'),
+      h('p', null, 'لا تُحفظ المفاتيح في Turso أو Redis، ولا يمكن إضافتها من لوحة التحكم.'),
+      keys.length === 0
+        ? h('div', { className: 'msg' }, 'لم يتم العثور على AGNES_API_KEY_1 أو المفاتيح المرقمة.')
+        : h('table', null,
+          h('thead', null, h('tr', null, ['رقم', 'المفتاح', 'الدور'].map((label, index) => h('th', { key: index }, label)))),
+          h('tbody', null, keys.map((key) => h('tr', { key: key.index },
+            h('td', null, key.index),
+            h('td', { className: 'mono' }, key.masked),
+            h('td', null, key.role === 'story-images' ? 'النص + الصور بالتتابع' : 'تحريك متوازٍ'))))))),
   );
 }
