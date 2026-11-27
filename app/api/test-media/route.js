@@ -1,59 +1,45 @@
-import { isAuthed, unauthorized } from '../../../lib/auth.js';
-import { withKey } from '../../../lib/keyManager.js';
-import * as agnes from '../../../lib/agnes.js';
-import { db } from '../../../lib/db.js';
-import { decrypt } from '../../../lib/crypto.js';
+import { isAuthed, unauthorized } from "../../../lib/auth.js";
+import { getStoryImageKey, getMotionKeys } from "../../../lib/envKeys.js";
+import * as agnes from "../../../lib/agnes.js";
 
-// للتشخيص: بيستخدم أول مفتاح مباشرة (من غير cooldown) عشان نشوف الخطأ الحقيقي من Agnes
-async function directKey() {
-  const r = await db.execute("SELECT key_enc FROM api_keys WHERE provider='agnes' AND status!='disabled' ORDER BY id LIMIT 1");
-  if (!r.rows[0]) throw new Error('no agnes key');
-  return decrypt(r.rows[0].key_enc);
-}
-
-export const runtime = 'nodejs';
+export const runtime = "nodejs";
 export const maxDuration = 60;
 
-// يقص أي نص طويل (مثل base64) عشان الناتج يتقري
-const trunc = (v) =>
-  typeof v === 'string' ? (v.length > 160 ? v.slice(0, 160) + `…(${v.length} chars)` : v)
-  : Array.isArray(v) ? v.map(trunc)
-  : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, trunc(x)]))
-  : v;
+const trunc = (value) =>
+  typeof value === "string" ? (value.length > 160 ? value.slice(0, 160) + "…(" + value.length + " chars)" : value)
+  : Array.isArray(value) ? value.map(trunc)
+  : value && typeof value === "object" ? Object.fromEntries(Object.entries(value).map(([key, item]) => [key, trunc(item)]))
+  : value;
 
-// اختبار تشخيصي خطوة بخطوة: image → video-create → video-poll
-export async function POST(req) {
+export async function POST(request) {
   if (!(await isAuthed())) return unauthorized();
-  const { step, image, id } = await req.json();
+  const body = await request.json().catch(() => ({}));
+  const step = body.step;
+  const imageUrl = body.image;
+  const id = body.id;
   try {
-    if (step === 'image') {
-      const r = await withKey('agnes', (k) =>
-        agnes.request('/v1/images/generations', { method: 'POST', key: k, body: {
-          model: 'agnes-image-2.1-flash',
-          prompt: 'A cute small fox in a magical forest, soft 3D children illustration, vertical composition',
-          size: process.env.AGNES_IMAGE_SIZE || '768x1344',
-        } }), { maxWaitSec: 30 });
-      return Response.json({ ok: true, url: r.data?.[0]?.url || null, raw: trunc(r) });
+    if (step === "image") {
+      const referenceImageUrl = process.env.FOX_REFERENCE_IMAGE_URL;
+      if (!referenceImageUrl) throw new Error("FOX_REFERENCE_IMAGE_URL is not configured");
+      const result = await agnes.image(getStoryImageKey(),
+        "A cute small fox in the exact same identity as the supplied reference, soft cinematic 3D children's illustration, portrait 9:16",
+        { referenceImageUrl });
+      return Response.json({ ok: true, url: result.url || null, raw: trunc(result.raw) });
     }
-    if (step === 'video-create') {
-      const body = agnes.buildVideoBody('The fox slowly turns its head and smiles, gentle camera push-in', image);
-      try {
-        const r = await agnes.request('/v1/videos', { method: 'POST', key: await directKey(), body });
-        return Response.json({ ok: true, raw: trunc(r), sent: trunc(body) });
-      } catch (e) {
-        return Response.json({ ok: false, error: `HTTP ${e.status ?? '?'}: ${String(e.message).slice(0, 400)}`, sent: trunc(body) });
-      }
+    const key = getMotionKeys()[0]?.key;
+    if (!key) throw new Error("Set AGNES_API_KEY_2 to test image-to-video");
+    if (step === "video-create") {
+      const created = await agnes.createVideo(key,
+        "The fox slowly turns its head and smiles, gentle cinematic camera push-in",
+        imageUrl);
+      return Response.json({ ok: true, raw: trunc(created.raw), videoId: created.videoId, model: created.model });
     }
-    if (step === 'video-poll') {
-      try {
-        const r = await agnes.request(`/agnesapi?video_id=${encodeURIComponent(id)}`, { key: await directKey() });
-        return Response.json({ ok: true, raw: trunc(r) });
-      } catch (e) {
-        return Response.json({ ok: false, error: `HTTP ${e.status ?? '?'}: ${String(e.message).slice(0, 400)}` });
-      }
+    if (step === "video-poll") {
+      const result = await agnes.pollVideo(key, id, process.env.AGNES_VIDEO_MODEL || "agnes-video-2.5-flash");
+      return Response.json({ ok: true, raw: trunc(result) });
     }
-    return Response.json({ ok: false, error: 'bad step' }, { status: 400 });
-  } catch (e) {
-    return Response.json({ ok: false, error: String(e.message).slice(0, 400) });
+    return Response.json({ ok: false, error: "bad step" }, { status: 400 });
+  } catch (error) {
+    return Response.json({ ok: false, error: String(error.message).slice(0, 400), status: error.status || null });
   }
 }
