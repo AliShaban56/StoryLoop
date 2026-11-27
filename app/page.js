@@ -77,7 +77,7 @@ export default function Page() {
     if (!img.ok || !img.url) { add('وقفنا: مفيش رابط صورة. ابعت اللي فوق.'); setBusy(false); return; }
     add('2) إنشاء مقطع فيديو…');
     const vc = await post('/api/test-media', { step: 'video-create', image: img.url });
-    add('VIDEO-CREATE: ' + JSON.stringify(vc.ok ? vc.raw : { error: vc.error }, null, 1));
+    add('VIDEO-CREATE: ' + JSON.stringify(vc.ok ? vc.raw : { error: vc.error }, null, 1) + '\nSENT: ' + JSON.stringify(vc.sent));
     const raw = vc.raw || {};
     const vid = raw.videoId || raw.video_id || raw.data?.videoId || raw.data?.video_id || raw.id;
     if (!vc.ok || !vid) { add('وقفنا: مفيش video id. ابعت اللي فوق.'); setBusy(false); return; }
