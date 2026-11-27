@@ -1,4 +1,4 @@
--- Stories, scene assets and publishing metadata. API keys are intentionally NOT stored here.
+-- Stories, scene assets, publishing metadata, and encrypted provider keys.
 CREATE TABLE IF NOT EXISTS stories (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   day TEXT NOT NULL,
