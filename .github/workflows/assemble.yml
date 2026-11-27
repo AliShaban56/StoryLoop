@@ -5,7 +5,7 @@ on:
   workflow_dispatch: {}
 
 concurrency:
-  group: storyloop-assemble
+  group: storyloop-finalize
   cancel-in-progress: false
 
 jobs:
