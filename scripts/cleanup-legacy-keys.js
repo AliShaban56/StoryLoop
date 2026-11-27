@@ -6,5 +6,10 @@ if (process.env.CONFIRM_DELETE_LEGACY_DB_KEYS !== "YES") {
   process.exit(1);
 }
 
-await db.execute("DELETE FROM api_keys");
-console.log("Legacy database key rows removed. Active API keys are now environment-only.");
+try {
+  await db.execute("DELETE FROM api_keys");
+  console.log("Legacy database key rows removed. Active API keys are now environment-only.");
+} catch (error) {
+  if (/no such table/i.test(String(error.message))) console.log("No legacy api_keys table exists; nothing to clean.");
+  else throw error;
+}
