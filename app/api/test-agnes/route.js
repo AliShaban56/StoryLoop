@@ -8,9 +8,10 @@ export const maxDuration = 60;
 export async function POST() {
   if (!(await isAuthed())) return unauthorized();
   try {
-    const reply = await agnes.chat(getStoryImageKey(), [{ role: "user", content: "رد بكلمة واحدة: تمام" }]);
+    const key = await getStoryImageKey();
+    const reply = await agnes.chat(key, [{ role: "user", content: "رد بكلمة واحدة: تمام" }]);
     return Response.json({ ok: true, reply: String(reply).slice(0, 100) });
   } catch (error) {
-    return Response.json({ ok: false, error: String(error.message).slice(0, 200) });
+    return Response.json({ ok: false, error: String(error.message).slice(0, 200) }, { status: 400 });
   }
 }
