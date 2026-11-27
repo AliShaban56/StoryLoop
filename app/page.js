@@ -78,7 +78,7 @@ export default function Page() {
   }, [load]);
 
   useEffect(() => {
-    if (!job || ['completed', 'ready_for_assembly', 'failed'].includes(job.status)) return undefined;
+    if (!job || ['completed', 'failed'].includes(job.status)) return undefined;
     let stopped = false;
     const poll = async () => {
       const current = await api('/api/jobs/' + job.id);
