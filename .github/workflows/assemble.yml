@@ -1,0 +1,35 @@
+name: storyloop-assemble
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: storyloop-assemble
+  cancel-in-progress: false
+
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TURSO_DATABASE_URL: \${{ secrets.TURSO_DATABASE_URL }}
+      TURSO_AUTH_TOKEN: \${{ secrets.TURSO_AUTH_TOKEN }}
+      KV_REST_API_URL: \${{ secrets.KV_REST_API_URL }}
+      KV_REST_API_TOKEN: \${{ secrets.KV_REST_API_TOKEN }}
+      TTS_VOICE: ar-EG-SalmaNeural
+      TTS_RATE: -5%
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm install
+      - run: npm run migrate
+      - run: pip install edge-tts
+      - run: npm run finish
+      - uses: actions/upload-artifact@v4
+        with:
+          name: storyloop-assembled-videos
+          path: out/**/final.mp4
+          if-no-files-found: ignore
+          retention-days: 7
