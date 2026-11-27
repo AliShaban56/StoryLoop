@@ -47,9 +47,9 @@ export async function GET() {
 
   try {
     await pingRedis();
-    lamps.push({ id: "redis", label: "Redis / KV — حالة المهام", state: "ok", detail: "متصل" });
+    lamps.push({ id: "redis", label: "تخزين المهام والطوابير", state: "ok", detail: process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL ? "Redis / KV متصل" : "يعمل عبر Turso — لا يلزم Redis" });
   } catch (error) {
-    lamps.push({ id: "redis", label: "Redis / KV — حالة المهام", state: "error", detail: String(error.message).slice(0, 140) });
+    lamps.push({ id: "redis", label: "تخزين المهام والطوابير", state: "error", detail: String(error.message).slice(0, 140) });
   }
 
   try {
