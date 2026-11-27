@@ -7,7 +7,7 @@ StoryLoop generates one JSON story, sequential reference-consistent images, para
 1. AGNES_API_KEY_1 writes the story JSON and generates every scene image sequentially.
 2. The JSON contains one global style, a fixed characters dictionary (including fox), and exactly SCENES_PER_VIDEO scenes numbered from 1.
 3. FOX_REFERENCE_IMAGE_URL is attached as an image-to-image reference for every scene. Image URLs are persisted in Turso (scenes.image_url and assets.source_url).
-4. AGNES_API_KEY_2, AGNES_API_KEY_3, ... each work on one video scene at a time. Free keys are assigned in parallel; a scene that fails with a key is retried against another key.
+4. AGNES_API_KEY_2, AGNES_API_KEY_3, ... each work on one video scene at a time. A Redis lease enforces one active scene per key across concurrent jobs; free keys are assigned in parallel, and a scene that fails with a key is retried against another key.
 5. get_channel_failed, 408, 429, and 5xx errors are treated as temporary provider outages. They do not disable a key. The task is retried with exponential backoff; after repeated Agnes outages, the optional fal.ai queue adapter is used.
 6. The story becomes scenes_done only when all scene clips are complete. worker/finish.js orders scenes by idx, creates narration and refuses to assemble a partial video.
 7. Redis/KV stores the resumable job state and lock. Turso stores story, scene, and asset records.
