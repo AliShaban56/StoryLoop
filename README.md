@@ -12,21 +12,20 @@ StoryLoop generates one JSON story, sequential reference-consistent images, para
 6. The story becomes scenes_done only when all scene clips are complete. worker/finish.js orders scenes by idx, creates narration and refuses to assemble a partial video.
 7. Redis/KV stores the resumable job state and lock. Turso stores story, scene, and asset records.
 
-## Environment variables
+## API keys and environment variables
 
-Configure these in Vercel and GitHub Actions. Do not enter API keys in the dashboard and do not store provider keys in Turso or Redis.
+Add, replace, test, and remove Agnes API keys directly in the StoryLoop dashboard under **ربط المفاتيح**. Key #1 handles story text and sequential scene images; keys #2 onward handle parallel scene animation. Secrets are encrypted with AES-256-GCM before being written to the Turso `provider_keys` table. API responses expose only the key slot and a masked hint; raw secrets are never sent back to the browser. Redis stores job state and leases, not provider secrets.
 
-- AGNES_API_KEY_1: text generation and sequential image generation.
-- AGNES_API_KEY_2, AGNES_API_KEY_3, ...: parallel image-to-video workers. Add as many numbered keys as needed.
+Set a stable `KEYS_ENCRYPTION_SECRET` (recommended) or `ENCRYPTION_KEY` in Vercel before saving keys. Keep this value unchanged: rotating it without re-encrypting the stored rows makes previously saved keys unreadable. `ADMIN_PASSWORD` is accepted as a compatibility fallback for key derivation, but a dedicated strong encryption secret is recommended.
 - FOX_REFERENCE_IMAGE_URL: public HTTPS URL of the canonical fox reference image.
 - KV_REST_API_URL and KV_REST_API_TOKEN: Upstash Redis REST or Vercel KV REST credentials.
 - FAL_KEY: optional fallback provider key.
 - FAL_I2V_MODEL: optional fal model path; default fal-ai/kling-video/v3/standard/image-to-video.
 - TURSO_DATABASE_URL, TURSO_AUTH_TOKEN: story and asset database.
-- ADMIN_PASSWORD: dashboard password.
+- ADMIN_PASSWORD: dashboard password (and legacy encryption-key fallback).
 - Optional tuning: SCENES_PER_VIDEO, VIDEOS_PER_DAY, AGNES_TRANSIENT_MAX, AGNES_MAX_ATTEMPTS_PER_SCENE, AGNES_TEXT_MODEL, AGNES_IMAGE_MODEL, AGNES_VIDEO_MODEL, AGNES_IMAGE_SIZE, AGNES_VIDEO_SIZE.
 
-Copy .env.example to .env for local development. Set the same required variables in the Vercel project and the GitHub repository secrets. The image reference URL must be accessible by the Agnes API provider.
+Copy .env.example to .env for local development. Set the same required variables in the Vercel project and the GitHub repository secrets. The image reference URL must be accessible by the Agnes API provider. `KEYS_ENCRYPTION_SECRET` must remain stable while encrypted provider keys are stored.
 
 ## API
 
