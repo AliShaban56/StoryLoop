@@ -36,6 +36,7 @@ export default function Page() {
   const [text, setText] = useState('');
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
+  const [log, setLog] = useState('');
 
   const load = useCallback(async () => {
     const s = await api('/api/status');
@@ -66,6 +67,29 @@ export default function Page() {
     setBusy(false);
     load();
   };
+  const testMedia = async () => {
+    setBusy(true);
+    let out = '';
+    const add = (t) => { out += t + '\n\n'; setLog(out); };
+    add('1) توليد صورة…');
+    const img = await post('/api/test-media', { step: 'image' });
+    add('IMAGE: ' + JSON.stringify(img.ok ? img.raw : { error: img.error }, null, 1));
+    if (!img.ok || !img.url) { add('وقفنا: مفيش رابط صورة. ابعت اللي فوق.'); setBusy(false); return; }
+    add('2) إنشاء مقطع فيديو…');
+    const vc = await post('/api/test-media', { step: 'video-create', image: img.url });
+    add('VIDEO-CREATE: ' + JSON.stringify(vc.ok ? vc.raw : { error: vc.error }, null, 1));
+    const raw = vc.raw || {};
+    const vid = raw.videoId || raw.video_id || raw.data?.videoId || raw.data?.video_id || raw.id;
+    if (!vc.ok || !vid) { add('وقفنا: مفيش video id. ابعت اللي فوق.'); setBusy(false); return; }
+    for (let i = 1; i <= 40; i++) {
+      await new Promise((r) => setTimeout(r, 8000));
+      const p = await post('/api/test-media', { step: 'video-poll', id: vid });
+      const st = JSON.stringify(p.raw || { error: p.error });
+      if (i === 1 || /complet|succe|done|fail|error|url/i.test(st)) { add(`POLL #${i}: ` + JSON.stringify(p.ok ? p.raw : { error: p.error }, null, 1)); if (/complet|succe|done|fail|error/i.test(st) || !p.ok) break; }
+    }
+    add('خلص. انسخ كل اللي فوق وابعته.');
+    setBusy(false);
+  };
   const act = async (id, action) => { await api('/api/keys', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, action }) }); load(); };
   const del = async (id) => { if (confirm('مسح المفتاح؟')) { await api(`/api/keys?id=${id}`, { method: 'DELETE' }); load(); } };
 
@@ -79,8 +103,10 @@ export default function Page() {
       h('textarea', { value: text, onChange: (e) => setText(e.target.value), placeholder: 'sk-...\nsk-...' }),
       h('div', { className: 'row' },
         h('button', { onClick: addKeys, disabled: busy || !text.trim() }, 'إضافة'),
-        h('button', { className: 'ghost', onClick: testAgnes, disabled: busy }, 'اختبار الاتصال')),
-      msg && h('div', { className: 'msg' }, msg)),
+        h('button', { className: 'ghost', onClick: testAgnes, disabled: busy }, 'اختبار الاتصال'),
+        h('button', { className: 'ghost', onClick: testMedia, disabled: busy }, 'اختبار صورة وفيديو')),
+      msg && h('div', { className: 'msg' }, msg),
+      log && h('pre', { style: { direction: 'ltr', whiteSpace: 'pre-wrap', fontSize: 12, marginTop: 12, background: '#0c0e12', padding: 10, borderRadius: 8 } }, log)),
     h('div', { className: 'card' },
       h('h2', null, `المفاتيح (${keys.length})`),
       keys.length === 0 ? h('div', { className: 'msg' }, 'لسه مفيش مفاتيح') :
