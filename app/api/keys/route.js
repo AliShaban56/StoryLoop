@@ -4,16 +4,33 @@ import { getKeySummary } from "../../../lib/envKeys.js";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Secrets are never returned. Keys are read only from AGNES_API_KEY_N environment variables.
+// Return configuration state and masked hints only. Secret values never leave the server.
 export async function GET() {
   if (!(await isAuthed())) return unauthorized();
-  const keys = getKeySummary();
+
+  const configured = getKeySummary();
+  const byIndex = new Map(configured.map((key) => [key.index, key]));
+  const visibleIndexes = new Set([...Array.from({ length: 10 }, (_, index) => index + 1), ...byIndex.keys()]);
+  const keys = [...visibleIndexes]
+    .sort((a, b) => a - b)
+    .map((index) => {
+      const key = byIndex.get(index);
+      return {
+        index,
+        name: "AGNES_API_KEY_" + index,
+        role: index === 1 ? "story-images" : "motion",
+        configured: Boolean(key),
+        masked: key?.masked || null,
+      };
+    });
+
   return Response.json({
     storage: "environment",
     keys,
-    total: keys.length,
-    storyImageKeyConfigured: keys.some((key) => key.index === 1),
-    motionKeysConfigured: keys.filter((key) => key.role === "motion").length,
+    total: configured.length,
+    storyImageKeyConfigured: byIndex.has(1),
+    motionKeysConfigured: configured.filter((key) => key.index !== 1).length,
+    settingsUrl: "https://vercel.com/a-2731/story-loop/settings/environment-variables",
   });
 }
 
