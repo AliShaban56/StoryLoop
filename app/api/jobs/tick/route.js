@@ -1,6 +1,7 @@
 import { after } from "next/server";
 import { isAuthed, unauthorized } from "../../../../lib/auth.js";
-import { getJob, tickJob } from "../../../../lib/pipeline.js";
+import { tickJob } from "../../../../lib/pipeline.js";
+import { getJob } from "../../../../lib/jobStore.js";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
