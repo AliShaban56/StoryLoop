@@ -52,3 +52,15 @@ CREATE TABLE IF NOT EXISTS publish_log (
 
 CREATE INDEX IF NOT EXISTS idx_scenes_story_status ON scenes(story_id, status);
 CREATE INDEX IF NOT EXISTS idx_stories_status ON stories(status);
+
+
+-- Provider API keys are encrypted with AES-256-GCM before they are stored.
+CREATE TABLE IF NOT EXISTS provider_keys (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  provider TEXT NOT NULL,
+  key_index INTEGER NOT NULL,
+  encrypted_secret TEXT NOT NULL,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  UNIQUE(provider, key_index)
+);
