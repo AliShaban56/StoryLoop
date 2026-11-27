@@ -1,13 +1,13 @@
 import { getStoryImageKey, getMotionKeys } from "../lib/envKeys.js";
 import * as agnes from "../lib/agnes.js";
 
-const textKey = getStoryImageKey();
-const motionKey = getMotionKeys()[0];
+const textKey = await getStoryImageKey();
+const motionKey = (await getMotionKeys())[0];
 if (!process.env.FOX_REFERENCE_IMAGE_URL) {
   throw new Error("Set FOX_REFERENCE_IMAGE_URL before running the media smoke test");
 }
 if (!motionKey) {
-  throw new Error("Set AGNES_API_KEY_2 before running the video smoke test");
+  throw new Error("Save Agnes key #2 or higher in the StoryLoop dashboard before running the video smoke test");
 }
 
 const reply = await agnes.chat(textKey, [{ role: "user", content: "Reply with one word: ready" }]);
