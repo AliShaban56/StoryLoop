@@ -7,6 +7,13 @@ import { pingRedis } from "../../../lib/jobStore.js";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+async function ensureColumn(db, table, column, definition) {
+  const info = await db.execute("PRAGMA table_info(" + table + ")");
+  if (!info.rows.some((row) => row.name === column)) {
+    await db.execute("ALTER TABLE " + table + " ADD COLUMN " + column + " " + definition);
+  }
+}
+
 export async function GET() {
   if (!(await isAuthed())) return unauthorized();
   const lamps = [];
@@ -43,7 +50,13 @@ export async function GET() {
     await db.execute("SELECT 1");
     const sql = await fs.readFile(path.join(process.cwd(), "schema.sql"), "utf8");
     await db.executeMultiple(sql);
-    lamps.push({ id: "turso", label: "قاعدة البيانات (Turso)", state: "ok", detail: "متصلة" });
+    // Upgrade existing Turso databases on the first dashboard request.
+    await ensureColumn(db, "stories", "style", "TEXT");
+    await ensureColumn(db, "stories", "characters_json", "TEXT");
+    await ensureColumn(db, "stories", "job_id", "TEXT");
+    await ensureColumn(db, "scenes", "image_url", "TEXT");
+    await db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_stories_job_id ON stories(job_id) WHERE job_id IS NOT NULL");
+    lamps.push({ id: "turso", label: "قاعدة البيانات (Turso)", state: "ok", detail: "متصلة والجداول محدثة" });
   } catch (error) {
     lamps.push({ id: "turso", label: "قاعدة البيانات (Turso)", state: "error", detail: String(error.message).slice(0, 140) });
   }
