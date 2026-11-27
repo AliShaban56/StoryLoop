@@ -77,3 +77,16 @@ button.compact { padding:6px 9px; font-size:12px; white-space:nowrap; }
   .key-actions { align-items:stretch; flex-direction:column; }
   .button-link { width:100%; }
 }
+
+.key-table { min-width:920px; }
+.key-table td { vertical-align:middle; }
+.key-table td.mono { white-space:nowrap; }
+.key-slot { font-size:12px; }
+.key-input { width:270px; min-width:220px; padding:9px 10px; font-size:13px; direction:ltr; text-align:left; }
+.key-row-actions { white-space:nowrap; }
+.key-row-actions button + button { margin-left:5px; }
+button.danger { color:#fca5a5; border-color:rgba(239,68,68,.4); }
+.key-actions button { min-height:39px; }
+@media (max-width:560px) {
+  .key-input { width:230px; }
+}
