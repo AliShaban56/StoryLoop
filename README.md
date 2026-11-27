@@ -30,4 +30,4 @@
 ## لوحة التحكم (Vercel)
 - Next.js في `app/`. تدخل بكلمة سر `ADMIN_PASSWORD`.
 - لمبات حالة الربط (Turso / التشفير / مفاتيح Agnes) + إضافة مفاتيح متعددة + اختبار الاتصال + إيقاف/تفعيل/مسح كل مفتاح.
-- متغيرات Vercel المطلوبة (مرة واحدة): `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `ENCRYPTION_KEY`, `ADMIN_PASSWORD`.
+- متغيرات Vercel المطلوبة (مرة واحدة): `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` (مطلوبين). اختياري: `ENCRYPTION_KEY` (تشفير المفاتيح)، `ADMIN_PASSWORD` (كلمة سر اللوحة).

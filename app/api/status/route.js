@@ -11,12 +11,13 @@ export async function GET() {
   const lamps = [];
 
   const ek = process.env.ENCRYPTION_KEY;
-  lamps.push({
-    id: 'encryption',
-    label: 'مفتاح التشفير',
-    state: ek && ek.length === 64 ? 'ok' : 'error',
-    detail: ek && ek.length === 64 ? 'جاهز' : 'ENCRYPTION_KEY لازم يكون 64 حرف hex',
-  });
+  lamps.push(
+    !ek
+      ? { id: 'encryption', label: 'تشفير المفاتيح', state: 'idle', detail: 'مش مفعّل: المفاتيح بتتخزن بدون تشفير' }
+      : ek.length === 64
+        ? { id: 'encryption', label: 'تشفير المفاتيح', state: 'ok', detail: 'مفعّل' }
+        : { id: 'encryption', label: 'تشفير المفاتيح', state: 'error', detail: 'ENCRYPTION_KEY لازم يكون 64 حرف hex أو تمسحه' },
+  );
 
   let dbOk = false;
   try {
