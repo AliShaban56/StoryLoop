@@ -16,7 +16,7 @@ StoryLoop generates one JSON story, sequential reference-consistent images, para
 
 Add, replace, test, and remove Agnes API keys directly in the StoryLoop dashboard under **ربط المفاتيح**. Key #1 handles story text and sequential scene images; keys #2 onward handle parallel scene animation. Secrets are encrypted with AES-256-GCM before being written to the Turso `provider_keys` table. API responses expose only the key slot and a masked hint; raw secrets are never sent back to the browser. Redis stores job state and leases, not provider secrets.
 
-Set a stable `KEYS_ENCRYPTION_SECRET` (recommended) or `ENCRYPTION_KEY` in Vercel before saving keys. If neither exists, the stable `TURSO_AUTH_TOKEN` is used as a fallback. Keep the selected value unchanged: rotating it without re-encrypting stored rows makes previously saved keys unreadable. A dedicated strong encryption secret is recommended.
+Set a stable `KEYS_ENCRYPTION_SECRET` (recommended) or `ENCRYPTION_KEY` in Vercel before saving keys. If neither exists, the existing `ADMIN_PASSWORD` key derivation is preserved for compatibility; `TURSO_AUTH_TOKEN` is the final fallback. Keep the selected value unchanged: rotating it without re-encrypting stored rows makes previously saved keys unreadable. A dedicated strong encryption secret is recommended.
 - FOX_REFERENCE_IMAGE_URL: public HTTPS URL of the canonical fox reference image.
 - KV_REST_API_URL and KV_REST_API_TOKEN: Upstash Redis REST or Vercel KV REST credentials.
 - FAL_KEY: optional fallback provider key.
