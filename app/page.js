@@ -180,6 +180,6 @@ export default function Page() {
           h('tbody', null, keys.map((key) => h('tr', { key: key.index },
             h('td', null, key.index),
             h('td', { className: 'mono' }, key.masked),
-            h('td', null, key.role === 'story-images' ? 'النص + الصور بالتتابع' : 'تحريك متوازٍ'))))))),
+            h('td', null, key.role === 'story-images' ? 'النص + الصور بالتتابع' : 'تحريك متوازٍ')))))),
   );
 }
