@@ -52,4 +52,3 @@ CREATE TABLE IF NOT EXISTS publish_log (
 
 CREATE INDEX IF NOT EXISTS idx_scenes_story_status ON scenes(story_id, status);
 CREATE INDEX IF NOT EXISTS idx_stories_status ON stories(status);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_stories_job_id ON stories(job_id) WHERE job_id IS NOT NULL;
