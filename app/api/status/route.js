@@ -1,52 +1,58 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { isAuthed, unauthorized } from '../../../lib/auth.js';
+import fs from "node:fs/promises";
+import path from "node:path";
+import { isAuthed, unauthorized } from "../../../lib/auth.js";
+import { getAgnesKeys } from "../../../lib/envKeys.js";
+import { pingRedis } from "../../../lib/jobStore.js";
 
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-// كل "لمبة": state = ok | error | idle ، و detail نص قصير
 export async function GET() {
   if (!(await isAuthed())) return unauthorized();
   const lamps = [];
+  const keys = getAgnesKeys();
+  lamps.push({
+    id: "agnes_text_images",
+    label: "Agnes — النص والصور",
+    state: keys.some((key) => key.index === 1) ? "ok" : "error",
+    detail: keys.some((key) => key.index === 1) ? "المفتاح رقم 1 مضبوط في Environment Variables" : "اضبط AGNES_API_KEY_1",
+  });
+  const motionCount = keys.filter((key) => key.index !== 1).length;
+  lamps.push({
+    id: "agnes_motion",
+    label: "Agnes — التحريك المتوازي",
+    state: motionCount ? "ok" : "error",
+    detail: motionCount + " مفاتيح تحريك من Environment Variables",
+  });
+  lamps.push({
+    id: "fox_reference",
+    label: "الصورة المرجعية للثعلب",
+    state: process.env.FOX_REFERENCE_IMAGE_URL ? "ok" : "error",
+    detail: process.env.FOX_REFERENCE_IMAGE_URL ? "الرابط مضبوط" : "اضبط FOX_REFERENCE_IMAGE_URL كرابط HTTPS عام",
+  });
 
-  const ek = process.env.ENCRYPTION_KEY;
-  lamps.push(
-    !ek
-      ? { id: 'encryption', label: 'تشفير المفاتيح', state: 'idle', detail: 'مش مفعّل: المفاتيح بتتخزن بدون تشفير' }
-      : ek.length === 64
-        ? { id: 'encryption', label: 'تشفير المفاتيح', state: 'ok', detail: 'مفعّل' }
-        : { id: 'encryption', label: 'تشفير المفاتيح', state: 'error', detail: 'ENCRYPTION_KEY لازم يكون 64 حرف hex أو تمسحه' },
-  );
-
-  let dbOk = false;
   try {
-    const { db } = await import('../../../lib/db.js');
-    await db.execute('SELECT 1');
-    // تجهيز الجداول تلقائياً (آمن: IF NOT EXISTS)
-    const sql = await fs.readFile(path.join(process.cwd(), 'schema.sql'), 'utf8');
+    await pingRedis();
+    lamps.push({ id: "redis", label: "Redis / KV — حالة المهام", state: "ok", detail: "متصل" });
+  } catch (error) {
+    lamps.push({ id: "redis", label: "Redis / KV — حالة المهام", state: "error", detail: String(error.message).slice(0, 140) });
+  }
+
+  try {
+    const { db } = await import("../../../lib/db.js");
+    await db.execute("SELECT 1");
+    const sql = await fs.readFile(path.join(process.cwd(), "schema.sql"), "utf8");
     await db.executeMultiple(sql);
-    dbOk = true;
-    lamps.push({ id: 'turso', label: 'قاعدة البيانات (Turso)', state: 'ok', detail: 'متصلة والجداول جاهزة' });
-  } catch (e) {
-    lamps.push({ id: 'turso', label: 'قاعدة البيانات (Turso)', state: 'error', detail: String(e.message).slice(0, 140) });
+    lamps.push({ id: "turso", label: "قاعدة البيانات (Turso)", state: "ok", detail: "متصلة" });
+  } catch (error) {
+    lamps.push({ id: "turso", label: "قاعدة البيانات (Turso)", state: "error", detail: String(error.message).slice(0, 140) });
   }
 
-  if (dbOk) {
-    const { db } = await import('../../../lib/db.js');
-    const r = await db.execute("SELECT status, COUNT(*) c FROM api_keys WHERE provider='agnes' GROUP BY status");
-    const n = Object.fromEntries(r.rows.map((x) => [x.status, Number(x.c)]));
-    const active = n.active || 0;
-    const total = Object.values(n).reduce((a, b) => a + b, 0);
-    lamps.push({
-      id: 'agnes_keys',
-      label: 'مفاتيح Agnes',
-      state: active > 0 ? 'ok' : total > 0 ? 'error' : 'idle',
-      detail: total ? `${active} شغّال / ${n.cooling || 0} مستني / ${n.disabled || 0} موقوف` : 'مفيش مفاتيح، أضف من تحت',
-    });
-  }
-
-  lamps.push({ id: 'storage', label: 'التخزين (R2)', state: 'idle', detail: 'لسه مش مربوط' });
-  lamps.push({ id: 'metricool', label: 'النشر (Metricool)', state: 'idle', detail: 'لسه مش مربوط' });
-  return Response.json({ lamps });
+  lamps.push({
+    id: "fal",
+    label: "منصة التحريك الاحتياطية (fal.ai)",
+    state: process.env.FAL_KEY ? "ok" : "idle",
+    detail: process.env.FAL_KEY ? (process.env.FAL_I2V_MODEL || "fal-ai/kling-video/v3/standard/image-to-video") : "اختياري — اضبط FAL_KEY لتفعيل التحويل الاحتياطي",
+  });
+  return Response.json({ lamps, keyStorage: "environment-only" });
 }
