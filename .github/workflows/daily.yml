@@ -1,11 +1,11 @@
 name: storyloop-daily
 on:
   schedule:
-    - cron: '0 6 * * *'   # 06:00 UTC = 08:00 القاهرة
+    - cron: '0 6 * * *' # 08:00 Africa/Cairo
   workflow_dispatch: {}
 
 concurrency:
-  group: daily-video
+  group: storyloop-finalize
   cancel-in-progress: false
 
 jobs:
@@ -13,9 +13,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 180
     env:
-      TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
-      TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
-      ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+      TURSO_DATABASE_URL: \${{ secrets.TURSO_DATABASE_URL }}
+      TURSO_AUTH_TOKEN: \${{ secrets.TURSO_AUTH_TOKEN }}
+      ADMIN_PASSWORD: \${{ secrets.ADMIN_PASSWORD }}
+      AGNES_API_KEY_1: \${{ secrets.AGNES_API_KEY_1 }}
+      AGNES_API_KEY_2: \${{ secrets.AGNES_API_KEY_2 }}
+      AGNES_API_KEY_3: \${{ secrets.AGNES_API_KEY_3 }}
+      AGNES_API_KEY_4: \${{ secrets.AGNES_API_KEY_4 }}
+      AGNES_API_KEY_5: \${{ secrets.AGNES_API_KEY_5 }}
+      FOX_REFERENCE_IMAGE_URL: \${{ secrets.FOX_REFERENCE_IMAGE_URL }}
+      KV_REST_API_URL: \${{ secrets.KV_REST_API_URL }}
+      KV_REST_API_TOKEN: \${{ secrets.KV_REST_API_TOKEN }}
+      FAL_KEY: \${{ secrets.FAL_KEY }}
+      FAL_I2V_MODEL: \${{ vars.FAL_I2V_MODEL }}
+      SCENES_PER_VIDEO: 8
+      VIDEOS_PER_DAY: 2
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,11 +36,10 @@ jobs:
       - run: npm run migrate
       - run: pip install edge-tts
       - run: npm run daily
-        continue-on-error: true   # فشل مشهد ما يمنعش تجميع القصص الجاهزة
       - run: npm run finish
       - uses: actions/upload-artifact@v4
         with:
-          name: final-videos
+          name: storyloop-final-videos
           path: out/**/final.mp4
           if-no-files-found: ignore
           retention-days: 7

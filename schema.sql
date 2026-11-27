@@ -1,63 +1,66 @@
--- مفاتيح الـ API (مشفّرة) مع حالة كل مفتاح
-CREATE TABLE IF NOT EXISTS api_keys (
-  id             INTEGER PRIMARY KEY AUTOINCREMENT,
-  provider       TEXT NOT NULL,                 -- agnes | ...
-  label          TEXT,
-  key_enc        TEXT NOT NULL UNIQUE,          -- AES-256-GCM
-  status         TEXT NOT NULL DEFAULT 'active',-- active | cooling | disabled
-  cooldown_until INTEGER,                       -- unix seconds
-  uses           INTEGER NOT NULL DEFAULT 0,
-  fail_count     INTEGER NOT NULL DEFAULT 0,
-  last_error     TEXT,
-  created_at     INTEGER NOT NULL DEFAULT (unixepoch())
-);
-
--- القصص (قصتين يومياً)
+-- Stories, scene assets, publishing metadata, and encrypted provider keys.
 CREATE TABLE IF NOT EXISTS stories (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  day        TEXT NOT NULL,                     -- YYYY-MM-DD (Cairo)
-  slot       INTEGER NOT NULL,                  -- 1..N
-  title      TEXT,
-  character_sheet TEXT,                         -- وصف ثابت للشخصيات لتوحيد الستايل
-  status     TEXT NOT NULL DEFAULT 'pending',   -- pending | scenes_done | audio_done | assembled | published | failed
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  day TEXT NOT NULL,
+  slot INTEGER NOT NULL,
+  title TEXT,
+  character_sheet TEXT,
+  style TEXT,
+  characters_json TEXT,
+  job_id TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
   created_at INTEGER NOT NULL DEFAULT (unixepoch()),
   UNIQUE(day, slot)
 );
 
--- المشاهد
 CREATE TABLE IF NOT EXISTS scenes (
-  id            INTEGER PRIMARY KEY AUTOINCREMENT,
-  story_id      INTEGER NOT NULL REFERENCES stories(id),
-  idx           INTEGER NOT NULL,
-  narration     TEXT NOT NULL,                  -- التعليق الصوتي (عربي)
-  image_prompt  TEXT NOT NULL,                  -- English
-  motion_prompt TEXT NOT NULL,                  -- English
-  status        TEXT NOT NULL DEFAULT 'pending',-- pending | image_done | clip_done | failed
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  story_id INTEGER NOT NULL REFERENCES stories(id),
+  idx INTEGER NOT NULL,
+  narration TEXT NOT NULL,
+  image_prompt TEXT NOT NULL,
+  motion_prompt TEXT NOT NULL,
+  image_url TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
   image_asset_id INTEGER,
-  clip_asset_id  INTEGER,
+  clip_asset_id INTEGER,
   audio_asset_id INTEGER,
-  error         TEXT,
+  error TEXT,
   UNIQUE(story_id, idx)
 );
 
--- المكتبة: كل صورة/مقطع/صوت/فيديو نهائي
 CREATE TABLE IF NOT EXISTS assets (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  type       TEXT NOT NULL,                     -- image | clip | audio | final
-  prompt     TEXT,
-  tags       TEXT,
-  source_url TEXT,                              -- رابط المزود (ممكن ينتهي)
-  storage_url TEXT,                             -- الرابط الدائم (R2) - المرحلة القادمة
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  type TEXT NOT NULL,
+  prompt TEXT,
+  tags TEXT,
+  source_url TEXT,
+  storage_url TEXT,
   local_path TEXT,
   created_at INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
 CREATE TABLE IF NOT EXISTS publish_log (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  story_id   INTEGER NOT NULL REFERENCES stories(id),
-  platform   TEXT NOT NULL,                     -- youtube | tiktok
-  status     TEXT NOT NULL,
-  url        TEXT,
-  error      TEXT,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  story_id INTEGER NOT NULL REFERENCES stories(id),
+  platform TEXT NOT NULL,
+  status TEXT NOT NULL,
+  url TEXT,
+  error TEXT,
   created_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+CREATE INDEX IF NOT EXISTS idx_scenes_story_status ON scenes(story_id, status);
+CREATE INDEX IF NOT EXISTS idx_stories_status ON stories(status);
+
+
+-- Provider API keys are encrypted with AES-256-GCM before they are stored.
+CREATE TABLE IF NOT EXISTS provider_keys (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  provider TEXT NOT NULL,
+  key_index INTEGER NOT NULL,
+  encrypted_secret TEXT NOT NULL,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  UNIQUE(provider, key_index)
 );

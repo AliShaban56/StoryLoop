@@ -1,0 +1,32 @@
+name: storyloop-ci
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+  workflow_dispatch: {}
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TURSO_DATABASE_URL: file:/tmp/storyloop-ci.db
+      TURSO_AUTH_TOKEN: ci-only
+      ADMIN_PASSWORD: ci-only
+      KV_REST_API_URL: https://example-upstash.invalid
+      KV_REST_API_TOKEN: ci-only
+      AGNES_API_KEY_1: ci-placeholder
+      AGNES_API_KEY_2: ci-placeholder
+      FOX_REFERENCE_IMAGE_URL: https://example.invalid/fox.png
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+      - name: Check JavaScript syntax
+        run: find app lib worker scripts -name '*.js' -print0 | xargs -0 -n1 node --check
+      - name: Build Next.js app
+        run: npm run build

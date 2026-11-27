@@ -7,8 +7,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
-      TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+      TURSO_DATABASE_URL: \${{ secrets.TURSO_DATABASE_URL }}
+      TURSO_AUTH_TOKEN: \${{ secrets.TURSO_AUTH_TOKEN }}
+      AGNES_API_KEY_1: \${{ secrets.AGNES_API_KEY_1 }}
+      AGNES_API_KEY_2: \${{ secrets.AGNES_API_KEY_2 }}
+      FOX_REFERENCE_IMAGE_URL: \${{ secrets.FOX_REFERENCE_IMAGE_URL }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
