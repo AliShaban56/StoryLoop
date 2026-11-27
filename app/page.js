@@ -49,14 +49,14 @@ const stageNames = {
   failed: 'تعذر إكمال المهمة',
 };
 
+const roleLabel = (key) => key.index === 1 ? 'كتابة القصة + توليد الصور' : 'تحريك المشاهد بالتوازي';
+
 export default function Page() {
   const [authed, setAuthed] = useState(null);
   const [lamps, setLamps] = useState([]);
   const [keys, setKeys] = useState([]);
-  const [theme, setTheme] = useState('قصة سينمائية للأطفال عن الثعلب وقيمة أخلاقية ونهاية مفاجئة');
   const [job, setJob] = useState(null);
   const [message, setMessage] = useState('');
-  const [busy, setBusy] = useState(false);
   const [testing, setTesting] = useState(false);
 
   const load = useCallback(async () => {
@@ -99,55 +99,91 @@ export default function Page() {
   if (authed === null) return h('main', null, 'جاري التحميل…');
   if (authed === false) return h(Login, { onDone: load });
 
-  const startStory = async () => {
-    setBusy(true);
-    setMessage('تم إرسال طلب إنشاء القصة…');
+  const testAgnes = async () => {
+    setTesting(true);
+    setMessage('جارٍ اختبار مفتاح Agnes رقم 1 للنص…');
     try {
-      const result = await post('/api/jobs', { theme });
-      if (!result.ok || !result.job) throw new Error(result.error || 'تعذر إنشاء المهمة');
-      setJob(result.job);
-      setMessage('بدأت المهمة. المتصفح يتابع التقدم كل 5 ثوانٍ.');
-      await post('/api/jobs/tick', { jobId: result.job.id });
+      const result = await post('/api/test-agnes');
+      setMessage(result.ok ? '✅ مفتاح النص يعمل: ' + result.reply : '❌ تعذر الاتصال: ' + result.error);
     } catch (error) {
-      setMessage('خطأ: ' + error.message);
+      setMessage('❌ ' + error.message);
     } finally {
-      setBusy(false);
+      setTesting(false);
       load();
     }
   };
 
-  const testAgnes = async () => {
-    setTesting(true);
-    setMessage('اختبار مفتاح Agnes رقم 1…');
-    const result = await post('/api/test-agnes');
-    setMessage(result.ok ? '✅ Agnes متصل: ' + result.reply : '❌ ' + result.error);
-    setTesting(false);
+  const copyVariableName = async (name) => {
+    try {
+      await navigator.clipboard.writeText(name);
+      setMessage('تم نسخ اسم المتغير: ' + name);
+    } catch {
+      setMessage('انسخ اسم المتغير يدويًا: ' + name);
+    }
   };
 
   const currentStage = job ? stageNames[job.stage] || job.stage : '';
   const sceneRows = job?.scenes || [];
   const doneImages = sceneRows.filter((scene) => scene.imageStatus === 'done').length;
   const doneClips = sceneRows.filter((scene) => scene.motionStatus === 'done').length;
+  const configuredCount = keys.filter((key) => key.configured).length;
+  const motionCount = keys.filter((key) => key.index > 1 && key.configured).length;
 
   return h('main', null,
     h('header', { className: 'topbar' },
-      h('div', null, h('h1', null, 'StoryLoop'), h('p', null, 'خط إنتاج قصصي غير متزامن')),
-      h('span', { className: 'pill' }, 'Environment-only keys')),
+      h('div', null,
+        h('h1', null, 'StoryLoop'),
+        h('p', null, 'منصة إنتاج القصص والمشاهد آليًا')),
+      h('span', { className: 'pill' }, 'إدارة المفاتيح')),
     h('div', { className: 'card' },
       h('h2', null, 'حالة الأنظمة'),
       lamps.map((lamp) => h(Lamp, { key: lamp.id, lamp }))),
-    h('div', { className: 'card' },
-      h('h2', null, 'إنشاء قصة جديدة'),
-      h('label', { htmlFor: 'story-theme' }, 'فكرة القصة'),
-      h('textarea', {
-        id: 'story-theme',
-        value: theme,
-        onChange: (event) => setTheme(event.target.value),
-        placeholder: 'اكتب موضوع القصة أو الفكرة الرئيسية…',
-      }),
-      h('div', { className: 'row' },
-        h('button', { onClick: startStory, disabled: busy || !theme.trim() }, busy ? 'جارٍ الإرسال…' : 'ابدأ خط الإنتاج'),
-        h('button', { className: 'ghost', onClick: testAgnes, disabled: testing }, 'اختبار مفتاح النص والصور')),
+    h('section', { className: 'card key-linking' },
+      h('div', { className: 'section-heading' },
+        h('div', null,
+          h('h2', null, 'ربط المفاتيح'),
+          h('p', null, 'اربط مفاتيح Agnes من إعدادات Vercel، وسيقرأها StoryLoop تلقائيًا.')),
+        h('span', { className: 'pill' }, configuredCount + ' / ' + keys.length + ' مضبوط')),
+      h('div', { className: 'key-summary' },
+        h('div', { className: 'key-role-card' },
+          h('b', null, 'المفتاح رقم 1'),
+          h('strong', null, 'النص + الصور'),
+          h('small', null, keys.find((key) => key.index === 1)?.configured ? 'مضبوط' : 'مطلوب')),
+        h('div', { className: 'key-role-card' },
+          h('b', null, 'المفاتيح 2–10'),
+          h('strong', null, 'التحريك المتوازي'),
+          h('small', null, motionCount + ' مفاتيح مضبوطة'))),
+      h('div', { className: 'key-table-wrap' },
+        h('table', { className: 'key-table' },
+          h('thead', null,
+            h('tr', null,
+              ['المتغير', 'الدور', 'الحالة', ''].map((label, index) => h('th', { key: index }, label)))),
+          h('tbody', null, keys.map((key) => h('tr', { key: key.index },
+            h('td', { className: 'mono' }, key.name),
+            h('td', null, roleLabel(key)),
+            h('td', null,
+              h('span', { className: 'key-state ' + (key.configured ? 'is-configured' : 'is-missing') },
+                key.configured ? 'متصل' : 'غير مضبوط'),
+              key.configured && key.masked ? h('small', { className: 'masked-key' }, key.masked) : null),
+            h('td', null,
+              h('button', {
+                className: 'ghost compact',
+                onClick: () => copyVariableName(key.name),
+                type: 'button',
+              }, 'نسخ الاسم'))))))),
+      h('div', { className: 'key-actions' },
+        h('a', {
+          className: 'button-link',
+          href: 'https://vercel.com/a-2731/story-loop/settings/environment-variables',
+          target: '_blank',
+          rel: 'noreferrer',
+        }, 'فتح إعدادات ربط المفاتيح على Vercel'),
+        h('button', { className: 'ghost', onClick: testAgnes, disabled: testing },
+          testing ? 'جارٍ الاختبار…' : 'اختبار مفتاح النص والصور')),
+      h('div', { className: 'key-note' },
+        h('b', null, 'طريقة الربط:'),
+        h('span', null, 'افتح إعدادات Vercel، أضف المتغيرات بالأسماء الموضحة بالأعلى، وضع قيمة كل مفتاح في متغيره المقابل. بعد الحفظ أعد نشر المشروع لتفعيلها.'),
+        h('span', null, 'لا تضع قيمة المفتاح داخل هذه اللوحة؛ المفاتيح لا تُخزّن في Turso أو Redis ولا تظهر في المتصفح.')),
       message && h('div', { className: 'msg' }, message)),
     job && h('div', { className: 'card job-card' },
       h('div', { className: 'job-head' },
@@ -170,16 +206,5 @@ export default function Page() {
       job.lastError && h('div', { className: 'msg' }, 'آخر ملاحظة: ' + job.lastError),
       job.error && h('div', { className: 'msg error-msg' }, job.error),
       job.finalPath && h('div', { className: 'msg' }, 'مسار الفيديو النهائي: ' + job.finalPath)),
-    h('div', { className: 'card' },
-      h('h2', null, 'مفاتيح Agnes من Environment Variables'),
-      h('p', null, 'لا تُحفظ المفاتيح في Turso أو Redis، ولا يمكن إضافتها من لوحة التحكم.'),
-      keys.length === 0
-        ? h('div', { className: 'msg' }, 'لم يتم العثور على AGNES_API_KEY_1 أو المفاتيح المرقمة.')
-        : h('table', null,
-          h('thead', null, h('tr', null, ['رقم', 'المفتاح', 'الدور'].map((label, index) => h('th', { key: index }, label)))),
-          h('tbody', null, keys.map((key) => h('tr', { key: key.index },
-            h('td', null, key.index),
-            h('td', { className: 'mono' }, key.masked),
-            h('td', null, key.role === 'story-images' ? 'النص + الصور بالتتابع' : 'تحريك متوازٍ')))))),
   );
 }
